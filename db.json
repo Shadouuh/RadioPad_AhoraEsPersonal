@@ -1,0 +1,147 @@
+{
+  "roles": [
+    {
+      "id": "chief",
+      "label": "Jefe de Operadores"
+    },
+    {
+      "id": "operator",
+      "label": "Operador"
+    },
+    {
+      "id": "producer",
+      "label": "Productor"
+    }
+  ],
+  "users": [
+    {
+      "id": 1,
+      "username": "admin",
+      "password": "admin",
+      "fullName": "Jefe de Operadores",
+      "role": "chief",
+      "assignedProgramIds": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": 2,
+      "username": "operador",
+      "password": "1234",
+      "fullName": "Operador Técnico",
+      "role": "operator",
+      "assignedProgramIds": [
+        1
+      ]
+    },
+    {
+      "id": 3,
+      "username": "productor",
+      "password": "1234",
+      "fullName": "Productor",
+      "role": "producer",
+      "assignedProgramIds": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": 4,
+      "username": "mateo",
+      "password": "1234",
+      "fullName": "Mateo",
+      "role": "operator",
+      "assignedProgramIds": [
+        2
+      ]
+    },
+    {
+      "id": 5,
+      "username": "juan",
+      "password": "1234",
+      "fullName": "Juan",
+      "role": "producer",
+      "assignedProgramIds": [
+        1,
+        2
+      ]
+    },
+    {
+      "username": "admin",
+      "password": "admin",
+      "fullName": "Santino",
+      "role": "operator",
+      "assignedProgramIds": [
+        1,
+        3
+      ],
+      "id": 6
+    }
+  ],
+  "programs": [
+    {
+      "id": 1,
+      "name": "Mañanas al Aire",
+      "description": "Programa matutino con noticias y entretenimiento"
+    },
+    {
+      "id": 2,
+      "name": "Tarde Urbana",
+      "description": "Programa de música y cultura"
+    },
+    {
+      "name": "Testeo",
+      "description": "No se",
+      "id": 3
+    }
+  ],
+  "sounds": [
+    {
+      "name": "Whoosh",
+      "scope": "institutional",
+      "programId": null,
+      "ownerUserId": null,
+      "fileUrl": "http://localhost:3002/uploads/1765927103570-361324294.mp3",
+      "id": 4,
+      "playCount": 18,
+      "durationSeconds": 5.544
+    },
+    {
+      "name": "Whoosh",
+      "scope": "program",
+      "programId": 1,
+      "ownerUserId": null,
+      "fileUrl": "http://localhost:3002/uploads/1765927103570-361324294.mp3",
+      "playCount": 1,
+      "id": 5
+    },
+    {
+      "name": "Whoosh",
+      "scope": "program",
+      "programId": 1,
+      "ownerUserId": null,
+      "fileUrl": "http://localhost:3002/uploads/1765927103570-361324294.mp3",
+      "playCount": 0,
+      "id": 6
+    },
+    {
+      "name": "Prueba",
+      "scope": "personal",
+      "programId": null,
+      "ownerUserId": 1,
+      "fileUrl": "http://localhost:3002/uploads/1765939792385-286915864.mp3",
+      "playCount": 1,
+      "id": 7
+    },
+    {
+      "name": "Prueba",
+      "scope": "program",
+      "programId": 3,
+      "ownerUserId": null,
+      "fileUrl": "http://localhost:3002/uploads/1765939792385-286915864.mp3",
+      "playCount": 0,
+      "id": 8
+    }
+  ]
+}

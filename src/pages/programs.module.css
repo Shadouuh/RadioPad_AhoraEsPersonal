@@ -1,0 +1,125 @@
+.split {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 12px;
+  align-items: start;
+}
+
+.left {
+  position: sticky;
+  top: 86px;
+  align-self: start;
+}
+
+.programNav {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.programItem {
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 16px;
+  padding: 12px 14px;
+  cursor: pointer;
+}
+
+.programItem:hover {
+  background: var(--hover);
+}
+
+.programItemActive {
+  background: var(--hover-2);
+  border-color: var(--line);
+}
+
+.programName {
+  font-weight: 900;
+  letter-spacing: 0.1px;
+}
+
+.programDesc {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.programMeta {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.peopleGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.personChip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: var(--r-xl);
+  padding: 10px 12px;
+}
+
+.avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  background: var(--hover-2);
+  border: 1px solid var(--line);
+}
+
+.personInfo {
+  min-width: 0;
+  flex: 1;
+}
+
+.personName {
+  font-weight: 900;
+  letter-spacing: 0.1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.personSub {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.personMeta {
+  flex-shrink: 0;
+}
+
+@media (max-width: 980px) {
+  .split {
+    grid-template-columns: 1fr;
+  }
+
+  .left {
+    position: relative;
+    top: auto;
+  }
+
+  .peopleGrid {
+    grid-template-columns: 1fr;
+  }
+}
