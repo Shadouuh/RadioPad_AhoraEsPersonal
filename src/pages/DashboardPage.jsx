@@ -1,9 +1,9 @@
 import { useMemo } from 'react'
 import { FiActivity, FiBarChart2, FiHeadphones, FiLayers, FiTrendingUp, FiUsers } from 'react-icons/fi'
 import { useAuth } from '../context/AuthContext'
-import { getPrograms } from '../services/programService'
-import { getSounds } from '../services/soundService'
-import { getUsers } from '../services/userService'
+import { getPrograms } from '../services/programSupabase'
+import { getSounds } from '../services/soundSupabase'
+import { getUsers } from '../services/userSupabase'
 import { useApiList } from '../hooks/useApiList'
 import ui from '../components/ui/ui.module.css'
 
@@ -186,7 +186,7 @@ export default function DashboardPage() {
           <div className={ui.kpi}>
             {programsQuery.error || soundsQuery.error || usersQuery.error ? 'OFF' : 'ON'}
           </div>
-          <div className={ui.kpiHint}>JSON Server</div>
+          <div className={ui.kpiHint}>Supabase</div>
         </div>
 
         <div className={ui.card} style={{ gridColumn: 'span 9' }}>

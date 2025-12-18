@@ -1,15 +1,12 @@
 import { useMemo, useState } from 'react'
 import { FiPlus } from 'react-icons/fi'
 import { useAuth } from '../context/AuthContext'
-import { getSounds } from '../services/soundService'
-import { createSound } from '../services/soundService'
-import { deleteSound } from '../services/soundService'
+import { getSounds, createSound, deleteSound } from '../services/soundSupabase'
 import { useApiList } from '../hooks/useApiList'
 import SoundGrid from '../components/sounds/SoundGrid'
 import ui from '../components/ui/ui.module.css'
 import Modal from '../components/ui/Modal'
-import FileDropzone from '../components/ui/FileDropzone'
-import { uploadFile } from '../services/uploadService'
+import AudioFileUploader from '../components/AudioFileUploader'
 import { ROLES } from '../utils/roles'
 
 export default function FxPadPage() {
@@ -18,10 +15,9 @@ export default function FxPadPage() {
 
   const [showCreateFx, setShowCreateFx] = useState(false)
   const [newFxName, setNewFxName] = useState('')
-  const [newFxFileUrl, setNewFxFileUrl] = useState('')
-  const [newFxFileName, setNewFxFileName] = useState('')
-  const [newFxScope, setNewFxScope] = useState('personal')
-  const [uploadingFile, setUploadingFile] = useState(false)
+  const [newFxFile, setNewFxFile] = useState(null)
+  const [newFxScope, setNewFxScope] = useState('institutional')
+  const [newFxCategories, setNewFxCategories] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState(null)
 
@@ -43,27 +39,13 @@ export default function FxPadPage() {
     return user.role === ROLES.CHIEF || user.role === ROLES.OPERATOR
   }, [user])
 
-  async function onPickFxFile(file) {
-    if (!file) return
-    setSubmitError(null)
-    setUploadingFile(true)
-    setNewFxFileName(file.name)
-    try {
-      const result = await uploadFile(file)
-      setNewFxFileUrl(result?.url ? String(result.url) : '')
-    } catch {
-      setSubmitError('No se pudo subir el archivo. Verificá que el upload server esté corriendo.')
-    } finally {
-      setUploadingFile(false)
-    }
-  }
 
   async function onDeleteFx(sound) {
     if (!sound?.id) return
     if (!user) return
-    if (sound.scope !== 'personal') return
-    if (sound.ownerUserId !== user.id) return
-    const ok = window.confirm(`Eliminar "${sound.name}"?`)
+    if (sound.scope !== 'institutional') return
+    if (user.role !== ROLES.CHIEF) return
+    const ok = window.confirm(`Eliminar "${sound.name}" de la biblioteca institucional?`)
     if (!ok) return
     try {
       await deleteSound(sound.id)
@@ -77,31 +59,41 @@ export default function FxPadPage() {
     e.preventDefault()
     if (!canCreateFx) return
     if (!user) return
-    if (!newFxName.trim()) return
-    if (!newFxFileUrl.trim()) return
+    if (!newFxName.trim()) {
+      setSubmitError('Ingresa un nombre para el FX.')
+      return
+    }
+    if (!newFxFile) {
+      setSubmitError('Selecciona un archivo de audio.')
+      return
+    }
 
     setSubmitting(true)
     setSubmitError(null)
 
     try {
-      const requested = String(newFxScope || 'personal')
-      const scope = user.role === ROLES.CHIEF ? requested : 'personal'
-      const ownerUserId = scope === 'personal' ? user.id : null
+      const categories = newFxCategories
+        .split(',')
+        .map((c) => c.trim())
+        .filter(Boolean)
+
       await createSound({
         name: newFxName.trim(),
-        scope,
+        scope: 'institutional',
         programId: null,
-        ownerUserId,
-        fileUrl: newFxFileUrl.trim(),
+        ownerUserId: null,
+        fileUrl: newFxFile.fileUrl || newFxFile.filePath,
+        durationSeconds: newFxFile.duration,
+        categories,
       })
       refetch()
       setShowCreateFx(false)
       setNewFxName('')
-      setNewFxFileUrl('')
-      setNewFxFileName('')
-      setNewFxScope(user.role === ROLES.CHIEF ? 'institutional' : 'personal')
-    } catch {
-      setSubmitError('No se pudo crear el FX.')
+      setNewFxFile(null)
+      setNewFxCategories('')
+      setNewFxScope('institutional')
+    } catch (err) {
+      setSubmitError(err.message || 'No se pudo crear el FX.')
     } finally {
       setSubmitting(false)
     }
@@ -142,7 +134,7 @@ export default function FxPadPage() {
             sounds={visibleSounds}
             emptyText="No hay sonidos visibles."
             variant="minimal"
-            canDelete={(s) => s?.scope === 'personal' && user?.id != null && s.ownerUserId === user.id}
+            canDelete={(s) => s?.scope === 'institutional' && user?.role === ROLES.CHIEF}
             onDelete={onDeleteFx}
           />
         )}
@@ -150,17 +142,35 @@ export default function FxPadPage() {
 
       <Modal
         open={showCreateFx}
-        title="Nuevo FX"
+        title="Nuevo FX Institucional"
         onClose={() => {
           if (submitting) return
           setShowCreateFx(false)
+          setNewFxName('')
+          setNewFxFile(null)
+          setNewFxCategories('')
         }}
         footer={
           <>
-            <button className={ui.button} type="button" onClick={() => setShowCreateFx(false)} disabled={submitting}>
+            <button 
+              className={ui.button} 
+              type="button" 
+              onClick={() => {
+                setShowCreateFx(false)
+                setNewFxName('')
+                setNewFxFile(null)
+                setNewFxCategories('')
+              }} 
+              disabled={submitting}
+            >
               Cancelar
             </button>
-            <button className={ui.buttonPrimary} type="submit" form="create-fx" disabled={submitting || uploadingFile}>
+            <button 
+              className={ui.buttonPrimary} 
+              type="submit" 
+              form="create-fx" 
+              disabled={submitting || !newFxFile || !newFxName.trim()}
+            >
               Crear
             </button>
           </>
@@ -170,51 +180,45 @@ export default function FxPadPage() {
           <div className={ui.grid}>
             <div style={{ gridColumn: 'span 12' }}>
               <div className={ui.muted} style={{ marginBottom: 6 }}>
-                Nombre
+                Nombre del FX
               </div>
-              <input className={ui.input} value={newFxName} onChange={(e) => setNewFxName(e.target.value)} />
+              <input 
+                className={ui.input} 
+                placeholder="Ej: Cortina institucional"
+                value={newFxName} 
+                onChange={(e) => setNewFxName(e.target.value)}
+                disabled={submitting}
+              />
             </div>
 
             <div style={{ gridColumn: 'span 12' }}>
               <div className={ui.muted} style={{ marginBottom: 6 }}>
-                Categoría
+                Archivo de audio
               </div>
-              <select
-                className={ui.input}
-                value={newFxScope}
-                onChange={(e) => setNewFxScope(e.target.value)}
-                disabled={user?.role !== ROLES.CHIEF}
-                title={user?.role !== ROLES.CHIEF ? 'Solo el Jefe puede crear FX institucionales' : undefined}
-              >
-                {user?.role === ROLES.CHIEF ? <option value="institutional">Institucional</option> : null}
-                <option value="personal">Personal / general</option>
-              </select>
-            </div>
-            <div style={{ gridColumn: 'span 12' }}>
-              <FileDropzone
-                label="Archivo (mp3/wav/ogg/mp4)"
-                hint={newFxFileName ? `Seleccionado: ${newFxFileName}` : 'Se guarda en /uploads y se genera la URL automáticamente.'}
-                accept={[".mp3", ".wav", ".ogg", ".mp4"]}
-                disabled={uploadingFile || submitting}
-                onFileSelected={onPickFxFile}
+              <AudioFileUploader
+                onFileSelect={(fileData) => setNewFxFile(fileData)}
+                disabled={submitting}
               />
             </div>
+
             <div style={{ gridColumn: 'span 12' }}>
               <div className={ui.muted} style={{ marginBottom: 6 }}>
-                fileUrl
+                Categorías (opcional)
               </div>
               <input
                 className={ui.input}
-                placeholder="/audio/aplausos.mp3 o https://..."
-                value={newFxFileUrl}
-                onChange={(e) => setNewFxFileUrl(e.target.value)}
-                disabled={uploadingFile}
+                placeholder="Ej: institucional, apertura, cortina (separadas por comas)"
+                value={newFxCategories}
+                onChange={(e) => setNewFxCategories(e.target.value)}
+                disabled={submitting}
               />
-              {uploadingFile ? <div className={ui.muted} style={{ marginTop: 8 }}>Subiendo archivo…</div> : null}
+              <div className={ui.muted} style={{ marginTop: 4, fontSize: 12 }}>
+                Los FX institucionales son visibles para todos los usuarios en la sección Efectos y en Programas.
+              </div>
             </div>
           </div>
 
-          {submitError ? <div className={ui.muted} style={{ marginTop: 10 }}>{submitError}</div> : null}
+          {submitError ? <div className={ui.muted} style={{ marginTop: 10, color: '#d32f2f' }}>{submitError}</div> : null}
         </form>
       </Modal>
     </div>

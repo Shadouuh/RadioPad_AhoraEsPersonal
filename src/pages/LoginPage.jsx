@@ -100,13 +100,13 @@ export default function LoginPage() {
 
           <form onSubmit={onSubmit} className={styles.form}>
             <label className={styles.label}>
-              Usuario
+              Email
               <input
                 className={styles.input}
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 autoComplete="username"
-                placeholder="admin"
+                placeholder="tu-email@dominio.com"
               />
             </label>
 
@@ -118,7 +118,7 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 type="password"
                 autoComplete="current-password"
-                placeholder="admin"
+                placeholder="Tu contraseña"
               />
             </label>
 

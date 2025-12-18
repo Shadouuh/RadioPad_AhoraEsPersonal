@@ -1,16 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
 import { FiHeadphones, FiLayers, FiPlus, FiUsers } from 'react-icons/fi'
 import { useAuth } from '../context/AuthContext'
-import { createProgram, getPrograms } from '../services/programService'
-import { getSounds } from '../services/soundService'
+import { createProgram, getPrograms } from '../services/programSupabase'
+import { getSounds } from '../services/soundSupabase'
 import { getUsers } from '../services/userService'
 import { useApiList } from '../hooks/useApiList'
 import ui from '../components/ui/ui.module.css'
 import SoundGrid from '../components/sounds/SoundGrid'
 import styles from './programs.module.css'
 import { ROLES } from '../utils/roles'
-import { createSound, deleteSound } from '../services/soundService'
+import { createSound, deleteSound } from '../services/soundSupabase'
 import Modal from '../components/ui/Modal'
+import AudioFileUploader from '../components/AudioFileUploader'
 
 const INSTITUTIONAL_ID = 'institutional'
 
@@ -29,6 +30,14 @@ export default function ProgramsPage() {
   const [showCreateSound, setShowCreateSound] = useState(false)
   const [selectedFxId, setSelectedFxId] = useState('')
   const [fxSearch, setFxSearch] = useState('')
+  const [uploadMode, setUploadMode] = useState('select')
+  const [newSoundName, setNewSoundName] = useState('')
+  const [newSoundFile, setNewSoundFile] = useState(null)
+  const [newSoundCategories, setNewSoundCategories] = useState('')
+  
+  const [showAssignUsers, setShowAssignUsers] = useState(false)
+  const [selectedUserIds, setSelectedUserIds] = useState([])
+  const [userSearch, setUserSearch] = useState('')
 
   const [submitError, setSubmitError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
@@ -164,39 +173,92 @@ export default function ProgramsPage() {
     e.preventDefault()
     if (!canAssignFx) return
     if (!selectedProgram) return
-    if (!selectedFxId) return
-
-    const source = Array.isArray(soundsQuery.data)
-      ? soundsQuery.data.find((s) => String(s.id) === String(selectedFxId))
-      : null
-
-    if (!source) return
-    const srcUrl = source.fileUrl ? String(source.fileUrl).trim() : ''
-    if (!srcUrl) return
-
-    if (assignedFileUrls.has(srcUrl)) {
-      setSubmitError('Este FX ya está asignado a este programa.')
-      return
-    }
 
     setSubmitting(true)
     setSubmitError(null)
 
     try {
-      const created = await createSound({
-        name: source.name,
-        scope: 'program',
-        programId: selectedProgram.id,
-        ownerUserId: null,
-        fileUrl: srcUrl,
-      })
+      let created
+
+      if (uploadMode === 'select') {
+        if (!selectedFxId) {
+          setSubmitError('Selecciona un FX de la lista.')
+          setSubmitting(false)
+          return
+        }
+
+        const source = Array.isArray(soundsQuery.data)
+          ? soundsQuery.data.find((s) => String(s.id) === String(selectedFxId))
+          : null
+
+        if (!source) {
+          setSubmitError('FX no encontrado.')
+          setSubmitting(false)
+          return
+        }
+
+        const srcUrl = source.fileUrl ? String(source.fileUrl).trim() : ''
+        if (!srcUrl) {
+          setSubmitError('El FX seleccionado no tiene archivo.')
+          setSubmitting(false)
+          return
+        }
+
+        if (assignedFileUrls.has(srcUrl)) {
+          setSubmitError('Este FX ya está asignado a este programa.')
+          setSubmitting(false)
+          return
+        }
+
+        created = await createSound({
+          name: source.name,
+          scope: 'program',
+          programId: selectedProgram.id,
+          ownerUserId: null,
+          fileUrl: srcUrl,
+          durationSeconds: source.durationSeconds,
+          categories: source.categories || [],
+        })
+      } else {
+        if (!newSoundFile) {
+          setSubmitError('Selecciona un archivo de audio.')
+          setSubmitting(false)
+          return
+        }
+
+        if (!newSoundName.trim()) {
+          setSubmitError('Ingresa un nombre para el sonido.')
+          setSubmitting(false)
+          return
+        }
+
+        const categories = newSoundCategories
+          .split(',')
+          .map((c) => c.trim())
+          .filter(Boolean)
+
+        created = await createSound({
+          name: newSoundName.trim(),
+          scope: 'program',
+          programId: selectedProgram.id,
+          ownerUserId: null,
+          fileUrl: newSoundFile.fileUrl || newSoundFile.filePath,
+          durationSeconds: newSoundFile.duration,
+          categories,
+        })
+      }
+
       soundsQuery.refetch()
       setHighlightSoundId(created?.id ?? null)
       setShowCreateSound(false)
       setSelectedFxId('')
       setFxSearch('')
-    } catch {
-      setSubmitError('No se pudo asignar el FX.')
+      setUploadMode('select')
+      setNewSoundName('')
+      setNewSoundFile(null)
+      setNewSoundCategories('')
+    } catch (err) {
+      setSubmitError(err.message || 'No se pudo crear el FX.')
     } finally {
       setSubmitting(false)
     }
@@ -250,6 +312,45 @@ export default function ProgramsPage() {
       soundsQuery.refetch()
     } catch {
       setSubmitError('No se pudo eliminar el FX del programa.')
+    }
+  }
+
+  async function onAssignUsers(e) {
+    e.preventDefault()
+    if (!selectedProgram || selectedProgram.id === INSTITUTIONAL_ID) return
+    if (selectedUserIds.length === 0) {
+      setSubmitError('Selecciona al menos un usuario.')
+      return
+    }
+
+    setSubmitting(true)
+    setSubmitError(null)
+
+    try {
+      const { updateUser } = await import('../services/userService')
+      
+      for (const userId of selectedUserIds) {
+        const userToUpdate = usersQuery.data.find(u => u.id === userId)
+        if (!userToUpdate) continue
+
+        const currentProgramIds = Array.isArray(userToUpdate.assignedProgramIds) 
+          ? userToUpdate.assignedProgramIds 
+          : []
+        
+        if (!currentProgramIds.includes(selectedProgram.id)) {
+          const newProgramIds = [...currentProgramIds, selectedProgram.id]
+          await updateUser(userId, { assignedProgramIds: newProgramIds })
+        }
+      }
+
+      usersQuery.refetch()
+      setShowAssignUsers(false)
+      setSelectedUserIds([])
+      setUserSearch('')
+    } catch (err) {
+      setSubmitError(err.message || 'No se pudieron asignar los usuarios.')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -404,11 +505,24 @@ export default function ProgramsPage() {
 
             {selectedProgram?.id !== INSTITUTIONAL_ID ? (
               <div className={ui.card}>
-                <div className={ui.cardTitle}>Personas asignadas</div>
-                <div className={ui.muted} style={{ marginBottom: 10 }}>
-                  {user?.role === 'chief'
-                    ? 'Usuarios con acceso a este programa.'
-                    : 'Visible para referencia (solo lectura).'}
+                <div className={ui.pageHeader} style={{ marginBottom: 10 }}>
+                  <div>
+                    <div className={ui.cardTitle}>Personas asignadas</div>
+                    <div className={ui.muted}>
+                      {user?.role === 'chief'
+                        ? 'Usuarios con acceso a este programa.'
+                        : 'Visible para referencia (solo lectura).'}
+                    </div>
+                  </div>
+                  {user?.role === 'chief' ? (
+                    <button
+                      className={ui.buttonPrimary}
+                      type="button"
+                      onClick={() => setShowAssignUsers(true)}
+                    >
+                      <FiPlus /> Asignar usuarios
+                    </button>
+                  ) : null}
                 </div>
 
                 {usersQuery.loading ? (
@@ -503,6 +617,10 @@ export default function ProgramsPage() {
           setShowCreateSound(false)
           setSelectedFxId('')
           setFxSearch('')
+          setUploadMode('select')
+          setNewSoundName('')
+          setNewSoundFile(null)
+          setNewSoundCategories('')
         }}
         footer={
           <>
@@ -513,42 +631,75 @@ export default function ProgramsPage() {
                 setShowCreateSound(false)
                 setSelectedFxId('')
                 setFxSearch('')
+                setUploadMode('select')
+                setNewSoundName('')
+                setNewSoundFile(null)
+                setNewSoundCategories('')
               }}
               disabled={submitting}
             >
               Cancelar
             </button>
-            <button className={ui.buttonPrimary} type="submit" form="create-sound" disabled={submitting || !selectedFxId}>
-              Asignar
+            <button 
+              className={ui.buttonPrimary} 
+              type="submit" 
+              form="create-sound" 
+              disabled={submitting || (uploadMode === 'select' ? !selectedFxId : !newSoundFile || !newSoundName.trim())}
+            >
+              {uploadMode === 'select' ? 'Asignar' : 'Crear y Asignar'}
             </button>
           </>
         }
       >
         <form id="create-sound" onSubmit={onCreateSound}>
           <div className={ui.grid}>
-            <div style={{ gridColumn: 'span 12' }}>
-              <div className={ui.muted} style={{ marginBottom: 6 }}>
-                FX disponible
-              </div>
-              <div className={ui.row}>
-                <input
-                  className={ui.input}
-                  placeholder="Buscar FX…"
-                  value={fxSearch}
-                  onChange={(e) => setFxSearch(e.target.value)}
-                />
+            <div style={{ gridColumn: 'span 12', marginBottom: 16 }}>
+              <div className={ui.row} style={{ gap: 8, marginBottom: 12 }}>
                 <button
-                  className={ui.button}
                   type="button"
-                  onClick={() => setSelectedFxId('')}
-                  disabled={!selectedFxId}
-                  title="Deseleccionar"
+                  className={uploadMode === 'select' ? ui.buttonPrimary : ui.button}
+                  onClick={() => setUploadMode('select')}
+                  disabled={submitting}
+                  style={{ flex: 1 }}
                 >
-                  Limpiar
+                  Seleccionar existente
+                </button>
+                <button
+                  type="button"
+                  className={uploadMode === 'upload' ? ui.buttonPrimary : ui.button}
+                  onClick={() => setUploadMode('upload')}
+                  disabled={submitting}
+                  style={{ flex: 1 }}
+                >
+                  Cargar nuevo
                 </button>
               </div>
+            </div>
 
-              <div className={ui.list} style={{ marginTop: 10, maxHeight: 300, overflow: 'auto' }}>
+            {uploadMode === 'select' ? (
+              <div style={{ gridColumn: 'span 12' }}>
+                <div className={ui.muted} style={{ marginBottom: 6 }}>
+                  FX disponible
+                </div>
+                <div className={ui.row}>
+                  <input
+                    className={ui.input}
+                    placeholder="Buscar FX…"
+                    value={fxSearch}
+                    onChange={(e) => setFxSearch(e.target.value)}
+                  />
+                  <button
+                    className={ui.button}
+                    type="button"
+                    onClick={() => setSelectedFxId('')}
+                    disabled={!selectedFxId}
+                    title="Deseleccionar"
+                  >
+                    Limpiar
+                  </button>
+                </div>
+
+                <div className={ui.list} style={{ marginTop: 10, maxHeight: 300, overflow: 'auto' }}>
                 {fxSources.institutional.length === 0 && fxSources.personal.length === 0 ? (
                   <div className={ui.muted}>No hay FX que coincidan.</div>
                 ) : (
@@ -637,10 +788,158 @@ export default function ProgramsPage() {
                   </>
                 )}
               </div>
+              </div>
+            ) : (
+              <div style={{ gridColumn: 'span 12' }}>
+                <div className={ui.muted} style={{ marginBottom: 6 }}>
+                  Nombre del sonido
+                </div>
+                <input
+                  className={ui.input}
+                  placeholder="Ej: Cortina de apertura"
+                  value={newSoundName}
+                  onChange={(e) => setNewSoundName(e.target.value)}
+                  disabled={submitting}
+                />
+
+                <div className={ui.muted} style={{ marginTop: 12, marginBottom: 6 }}>
+                  Archivo de audio
+                </div>
+                <AudioFileUploader
+                  onFileSelect={(fileData) => setNewSoundFile(fileData)}
+                  disabled={submitting}
+                />
+
+                <div className={ui.muted} style={{ marginTop: 12, marginBottom: 6 }}>
+                  Categorías (opcional)
+                </div>
+                <input
+                  className={ui.input}
+                  placeholder="Ej: musica, comedia, noticia (separadas por comas)"
+                  value={newSoundCategories}
+                  onChange={(e) => setNewSoundCategories(e.target.value)}
+                  disabled={submitting}
+                />
+                <div className={ui.muted} style={{ marginTop: 4, fontSize: 12 }}>
+                  Separa las categorías con comas. Ejemplos: musica, comedia, noticia, institucional
+                </div>
+              </div>
+            )}
+          </div>
+
+          {submitError ? <div className={ui.muted} style={{ marginTop: 10, color: '#d32f2f' }}>{submitError}</div> : null}
+        </form>
+      </Modal>
+
+      <Modal
+        open={showAssignUsers}
+        title="Asignar usuarios al programa"
+        onClose={() => {
+          if (submitting) return
+          setShowAssignUsers(false)
+          setSelectedUserIds([])
+          setUserSearch('')
+        }}
+        footer={
+          <>
+            <button
+              className={ui.button}
+              type="button"
+              onClick={() => {
+                setShowAssignUsers(false)
+                setSelectedUserIds([])
+                setUserSearch('')
+              }}
+              disabled={submitting}
+            >
+              Cancelar
+            </button>
+            <button
+              className={ui.buttonPrimary}
+              type="submit"
+              form="assign-users"
+              disabled={submitting || selectedUserIds.length === 0}
+            >
+              Asignar {selectedUserIds.length > 0 ? `(${selectedUserIds.length})` : ''}
+            </button>
+          </>
+        }
+      >
+        <form id="assign-users" onSubmit={onAssignUsers}>
+          <div className={ui.grid}>
+            <div style={{ gridColumn: 'span 12' }}>
+              <div className={ui.muted} style={{ marginBottom: 6 }}>
+                Buscar usuarios
+              </div>
+              <input
+                className={ui.input}
+                placeholder="Buscar por nombre..."
+                value={userSearch}
+                onChange={(e) => setUserSearch(e.target.value)}
+              />
+            </div>
+
+            <div style={{ gridColumn: 'span 12' }}>
+              <div className={ui.muted} style={{ marginBottom: 6 }}>
+                Usuarios disponibles ({usersQuery.data?.filter(u => {
+                  const alreadyAssigned = Array.isArray(u.assignedProgramIds) && u.assignedProgramIds.includes(selectedProgram?.id)
+                  const matchesSearch = userSearch.trim() === '' || u.fullName.toLowerCase().includes(userSearch.toLowerCase())
+                  return !alreadyAssigned && matchesSearch
+                }).length || 0})
+              </div>
+
+              <div className={ui.list} style={{ maxHeight: 400, overflow: 'auto' }}>
+                {usersQuery.loading ? (
+                  <div className={ui.muted}>Cargando usuarios...</div>
+                ) : usersQuery.error ? (
+                  <div className={ui.muted}>Error al cargar usuarios.</div>
+                ) : (
+                  usersQuery.data
+                    ?.filter(u => {
+                      const alreadyAssigned = Array.isArray(u.assignedProgramIds) && u.assignedProgramIds.includes(selectedProgram?.id)
+                      const matchesSearch = userSearch.trim() === '' || u.fullName.toLowerCase().includes(userSearch.toLowerCase())
+                      return !alreadyAssigned && matchesSearch
+                    })
+                    .map(u => {
+                      const isSelected = selectedUserIds.includes(u.id)
+                      return (
+                        <button
+                          key={u.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedUserIds(prev =>
+                              prev.includes(u.id)
+                                ? prev.filter(id => id !== u.id)
+                                : [...prev, u.id]
+                            )
+                          }}
+                          className={ui.listItem}
+                          style={{
+                            cursor: 'pointer',
+                            width: '100%',
+                            textAlign: 'left',
+                            borderColor: isSelected ? 'var(--accent)' : undefined,
+                            backgroundColor: isSelected ? 'rgba(25, 118, 210, 0.08)' : undefined,
+                          }}
+                        >
+                          <div className={ui.listMain}>
+                            <div className={ui.listTitle}>{u.fullName}</div>
+                            <div className={ui.listSub}>@{u.username} • {u.role}</div>
+                          </div>
+                          <div className={ui.listMeta}>
+                            <span className={ui.badge}>
+                              {isSelected ? '✓ Seleccionado' : 'Seleccionar'}
+                            </span>
+                          </div>
+                        </button>
+                      )
+                    })
+                )}
+              </div>
             </div>
           </div>
 
-          {submitError ? <div className={ui.muted} style={{ marginTop: 10 }}>{submitError}</div> : null}
+          {submitError ? <div className={ui.muted} style={{ marginTop: 10, color: '#d32f2f' }}>{submitError}</div> : null}
         </form>
       </Modal>
     </div>

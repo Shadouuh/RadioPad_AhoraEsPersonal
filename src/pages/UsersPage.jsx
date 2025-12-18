@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react'
 import { FiChevronDown, FiChevronUp, FiUsers } from 'react-icons/fi'
 import { useAuth } from '../context/AuthContext'
-import { getPrograms } from '../services/programService'
-import { createUser, deleteUser, getUsers, updateUser } from '../services/userService'
+import { getPrograms } from '../services/programSupabase'
+import { createUser, deleteUser, getUsers, updateUser } from '../services/userSupabase'
 import { useApiList } from '../hooks/useApiList'
 import { ROLE_LABELS } from '../utils/roles'
 import ui from '../components/ui/ui.module.css'
@@ -257,7 +257,7 @@ export default function UsersPage() {
           <div className={ui.grid}>
             <div style={{ gridColumn: 'span 6' }}>
               <div className={ui.muted} style={{ marginBottom: 6 }}>
-                Usuario
+                Email
               </div>
               <input className={ui.input} value={username} onChange={(e) => setUsername(e.target.value)} />
             </div>

@@ -206,10 +206,12 @@ export function AudioPlayerProvider({ children }) {
     }
 
     const onPlay = () => {
+      console.log('[AudioPlayer] onPlay event fired')
       setIsPlaying(true)
     }
 
     const onPause = () => {
+      console.log('[AudioPlayer] onPause event fired')
       setIsPlaying(false)
     }
 

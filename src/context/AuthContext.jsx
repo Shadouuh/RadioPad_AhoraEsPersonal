@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useMemo } from 'react'
-import { loginWithPassword } from '../services/authService'
+import { authenticateUser } from '../services/userSupabase'
 import { useLocalStorage } from '../hooks/useLocalStorage'
 
 const AuthContext = createContext(null)
@@ -7,27 +7,38 @@ const AuthContext = createContext(null)
 export function AuthProvider({ children }) {
   const [user, setUser] = useLocalStorage('radiopad_user', null)
 
+  const buildUser = useCallback((userData) => {
+    return {
+      id: userData.id,
+      username: userData.username,
+      fullName: userData.fullName,
+      role: userData.role,
+      assignedProgramIds: userData.assignedProgramIds || [],
+    }
+  }, [])
+
   const login = useCallback(
     async ({ username, password }) => {
-      const found = await loginWithPassword({ username, password })
-      if (!found) {
-        return { ok: false }
+      try {
+        const userData = await authenticateUser(username, password)
+        if (!userData) {
+          return { ok: false, error: 'Usuario o contraseña incorrectos' }
+        }
+        setUser(buildUser(userData))
+        return { ok: true }
+      } catch (error) {
+        console.error('[AuthContext] Login error:', error)
+        return { ok: false, error: error.message || 'Error al iniciar sesión' }
       }
-      setUser({
-        id: found.id,
-        username: found.username,
-        fullName: found.fullName,
-        role: found.role,
-        assignedProgramIds: found.assignedProgramIds || [],
-      })
-      return { ok: true }
     },
-    [setUser],
+    [setUser, buildUser],
   )
 
   const logout = useCallback(() => {
     setUser(null)
   }, [setUser])
+
+  // No necesitamos useEffect porque la sesión se guarda en localStorage
 
   const value = useMemo(() => ({ user, login, logout }), [user, login, logout])
 

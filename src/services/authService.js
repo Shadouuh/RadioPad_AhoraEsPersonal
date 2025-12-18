@@ -1,13 +1,15 @@
-import { apiGet } from './api'
+import { supabase } from '../lib/supabaseClient'
 
 export async function loginWithPassword({ username, password }) {
-  const users = await apiGet(
-    `/users?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`,
-  )
-
-  if (!Array.isArray(users) || users.length === 0) {
+  if (!supabase) {
     return null
   }
-
-  return users[0]
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: username,
+    password,
+  })
+  if (error) {
+    return null
+  }
+  return data?.user || null
 }

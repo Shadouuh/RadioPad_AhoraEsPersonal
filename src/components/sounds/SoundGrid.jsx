@@ -59,6 +59,14 @@ const SoundGrid = forwardRef(function SoundGrid(
       if (!canPlay(sound)) return
       if (isVideo(sound)) return
       if (durations[sound.id] != null) return
+      
+      if (sound.durationSeconds != null && Number.isFinite(sound.durationSeconds)) {
+        setDurations((prev) => {
+          if (prev[sound.id] != null) return prev
+          return { ...prev, [sound.id]: sound.durationSeconds }
+        })
+        return
+      }
 
       const a = new Audio()
       created.push(a)
@@ -130,6 +138,13 @@ const SoundGrid = forwardRef(function SoundGrid(
               <div className={styles.meta}>
                 {!minimal && showScope ? <span className={ui.badge}>{s.scope}</span> : null}
                 {!minimal ? <span className={ui.badge}>{formatDuration(durations[s.id])}</span> : null}
+                {!minimal && Array.isArray(s.categories) && s.categories.length > 0
+                  ? s.categories.map((cat, idx) => (
+                      <span key={idx} className={ui.badge} style={{ backgroundColor: '#e3f2fd', color: '#1976d2' }}>
+                        {cat}
+                      </span>
+                    ))
+                  : null}
               </div>
             </div>
 

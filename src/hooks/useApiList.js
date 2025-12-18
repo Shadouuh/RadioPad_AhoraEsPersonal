@@ -25,7 +25,9 @@ export function useApiList(fetcher, deps = []) {
         setData(Array.isArray(result) ? result : [])
       } catch (e) {
         if (!alive) return
+        console.error('[useApiList] Error fetching data:', e)
         setError(e)
+        setData([])
       } finally {
         if (!alive) return
         setLoading(false)

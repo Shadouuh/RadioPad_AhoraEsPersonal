@@ -77,7 +77,10 @@ export default function GlobalAudioPlayer() {
             <button
               className={`${ui.button} ${isPlaying ? ui.buttonPrimary : ''}`}
               type="button"
-              onClick={() => (currentSound ? toggle(currentSound) : null)}
+              onClick={() => {
+                console.log('[GlobalAudioPlayer] Toggle clicked, isPlaying:', isPlaying, 'currentSound:', currentSound)
+                if (currentSound) toggle(currentSound)
+              }}
               disabled={!currentSound}
               title={!currentSound ? 'Seleccioná un sonido' : isPlaying ? 'Pausar' : 'Play'}
             >
